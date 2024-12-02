@@ -1,0 +1,68 @@
+<?php
+// Configurações básicas
+$c55_domain = "https://www.colab55.com/";
+$data_load = "@isabelaleao"; // Substitua pelo valor correto
+$data_type = "towels"; // Substitua pelo valor correto
+$preview = false; // Ajuste para true se precisar de preview
+
+// Construir a URL
+$url = $c55_domain . $data_load . "/embed/" . $data_type;
+if ($preview) {
+    $url .= "?preview=1";
+}
+
+// Inicializar cURL
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $url);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    "X-Requested-With: XMLHttpRequest", // Cabeçalho para simular a requisição do script
+    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+]);
+
+// Executar a requisição e capturar a resposta
+$response = curl_exec($ch);
+
+// Verificar erros
+if (curl_errno($ch)) {
+    echo "Erro na requisição: " . curl_error($ch);
+    curl_close($ch);
+    exit;
+}
+
+// Fechar cURL
+curl_close($ch);
+
+// Processar o HTML retornado para extrair dados
+if ($response) {
+    $dom = new DOMDocument();
+    libxml_use_internal_errors(true); // Ignorar erros de parsing
+    $dom->loadHTML($response);
+    libxml_clear_errors();
+
+    $xpath = new DOMXPath($dom);
+    $product_links = $xpath->query("//a[contains(@class, 'c55-art-products-link')]");
+    $product_images = $xpath->query("//a[contains(@class, 'c55-art-products-link')]/img");
+    $product_prices = $xpath->query("//a[contains(@class, 'c55-art-products-link')]/span[contains(@class, 'c55-product-price')]");
+
+    $products = [];
+    foreach ($product_links as $index => $link) {
+        $image = $product_images->item($index);
+        $price = $product_prices->item($index);
+
+        if ($link instanceof DOMElement && $image instanceof DOMElement && $price) {
+            $products[] = [
+                "link" => $link->getAttribute("href"),
+                "image" => $image->getAttribute("src"),
+                "price" => trim($price->nodeValue)
+            ];
+        }
+    }
+
+    // Retornar JSON com barras normais
+    header("Content-Type: application/json");
+    echo json_encode($products, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+} else {
+    echo "Erro: Nenhum conteúdo retornado da URL.";
+}
+?>
